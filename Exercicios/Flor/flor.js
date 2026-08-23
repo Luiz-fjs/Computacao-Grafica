@@ -36,22 +36,22 @@ function ShapeVertices() {
         // Centro da Elipse 
         const angle = i * 2 * Math.PI / numRays;
 
-        const x = externalRadius * Math.cos(angle);
-        const y = externalRadius * Math.sin(angle);
-        vertices.push(x, y);
-        
+        const centerX = externalRadius * Math.cos(angle);
+        const centerY = externalRadius * Math.sin(angle);
+        vertices.push(centerX, centerY);
+
         // Calculate elipse vertices
         const numSides = 40;
 
-        for (let i = 0; i <= numSides; i++) {
-            const petalAngle = i * 2 * Math.PI / numSides;
+        for (let j = 0; j <= numSides; j++) {
+            const petalAngle = j * 2 * Math.PI / numSides;
 
             const x = 0.15 * Math.cos(petalAngle);
             const y = 0.35 * Math.sin(petalAngle);
 
             const xRot = x * Math.cos(petalAngle) - y * Math.sin(petalAngle);
             const yRot = x * Math.sin(petalAngle) + y * Math.cos(petalAngle);
-            vertices.push(xRot, yRot);
+            vertices.push(centerX + xRot, centerY + yRot);
         }
 
     }
@@ -226,7 +226,7 @@ gl.uniform4f(
 )
 
 gl.drawArrays(
-    gl.TRIANGLES,
+    gl.TRIANGLE_FAN,
     42, 
     210
 );
