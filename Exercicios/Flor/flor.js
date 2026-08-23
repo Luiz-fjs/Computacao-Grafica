@@ -29,8 +29,8 @@ function ShapeVertices() {
     }
 
     // Calculate petals vertices
-    const externalRadius = 0.6;
-    const numRays = 5;
+    const externalRadius = 0.5;
+    const numRays = 8;
 
     for (let i = 0; i < numRays; i++) {
         // Centro da Elipse 
@@ -46,8 +46,8 @@ function ShapeVertices() {
         for (let j = 0; j <= numSides; j++) {
             const elipseAngle = j * 2 * Math.PI / numSides;
 
-            const x = 0.15 * Math.cos(elipseAngle);
-            const y = 0.35 * Math.sin(elipseAngle);
+            const x = 0.35 * Math.cos(elipseAngle);
+            const y = 0.15 * Math.sin(elipseAngle);
 
             const xRot = x * Math.cos(petalAngle) - y * Math.sin(petalAngle);
             const yRot = x * Math.sin(petalAngle) + y * Math.cos(petalAngle);
@@ -226,7 +226,7 @@ gl.uniform4f(
     1.0, 
 )
 
-for (let i = 0; i < 5; i++) {
+for (let i = 0; i < 8; i++) {
     gl.drawArrays(
         gl.TRIANGLE_FAN,
         42 + i * 42, 
