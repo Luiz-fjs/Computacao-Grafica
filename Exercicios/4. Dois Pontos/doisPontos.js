@@ -197,60 +197,70 @@ let clicked = 0;
 let clickX1, clickY1;
 
 function mouseClick(event) {
-
-    if (clicked == 0) {
-        vertices[0] = (event.offsetX / canvas.width) * 2 - 1;
-        vertices[1] = -((event.offsetY / canvas.height) * 2 - 1);
-
+    if (clicked === 0) {
+        clickX1 = event.offsetX;
+        clickY1 = event.offsetY;
         clicked = 1;
-
     } else {
-        vertices[2] = (event.offsetX / canvas.width) * 2 - 1;
-        vertices[3] = -((event.offsetY / canvas.height) * 2 - 1);
-
+        let clickX2 = event.offsetX;
+        let clickY2 = event.offsetY;
         clicked = 0;
 
-        bresenham(vertices[0], vertices[2], vertices[1], vertices[3])
-        
-        gl.bindBuffer(
-            gl.ARRAY_BUFFER,
-            verticebuffer
-        );
+        let verticesArray = [];
+        let colorsArray = [];
 
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            vertices,
-            gl.STATIC_DRAW
-        );
+        bresenham(clickX1, clickX2, clickY1, clickY2, verticesArray, colorsArray);
+
+        vertices = new Float32Array(verticesArray);
+        colors = new Float32Array(colorsArray);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, verticebuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
 
         drawScene();
     }
-    
 }
 
-function bresenham (x1, x2, y1, y2){
-    let dx,dy, incSup, incInf, p, x, y;
-    dx = x2-x1; 
-    dy = y2-y1;
-    p = 2 * dy - dx; 
-    incInf = 2*dy; 
-    incSup = 2*(dy-dx); 
-    x = x1; 
-    y = y1;
-     
-    
-    while (x < x2) {
-        if (p < 0) { 
-            p = p + incInf;}
-        else { 
-            p = p + incSup;
-            y++;
-        } 
-        x++;
-        vertices.push(x, y);
-        colors.push(0.0,0.0,1.0, 0.0,0.0,1.0);
+function bresenham(x1, x2, y1, y2, vArray, cArray) {
+    let dx = Math.abs(x2 - x1);
+    let dy = Math.abs(y2 - y1);
+
+    let sx = x1 < x2 ? 1 : -1;
+    let sy = y1 < y2 ? 1 : -1;
+
+    let erro = dx - dy;
+
+    while (true) {
+
+        vArray.push((x1 / canvas.width) * 2 - 1,-((y1 / canvas.height) * 2 - 1));
+        cArray.push(0.0, 0.0, 1.0);
+
+        if (x1 === x2 && y1 === y2) {
+            break;
+        }
+
+        let e2 = 2 * erro;
+
+        if (e2 > -dy) {
+            erro -= dy;
+            x1 += sx;
+        }
+
+        if (e2 < dx) {
+            erro += dx;
+            y1 += sy;
+        }
     }
-} 
+}
+
+// --------------------------------------------------
+// 10. INTERAÇÃO COM O TECLADO
+// --------------------------------------------------
+
+
 
 // --------------------------------------------------
 // 10. LIMPAR TELA
