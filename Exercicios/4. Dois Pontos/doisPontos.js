@@ -195,6 +195,7 @@ gl.vertexAttribPointer(
 canvas.addEventListener("mousedown",mouseClick,false);
 let clicked = 0;
 let clickX1, clickY1;
+let currentColor = [0.0, 0.0, 1.0];
 
 function mouseClick(event) {
     if (clicked === 0) {
@@ -214,11 +215,27 @@ function mouseClick(event) {
         vertices = new Float32Array(verticesArray);
         colors = new Float32Array(colorsArray);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, verticebuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        gl.bindBuffer(
+            gl.ARRAY_BUFFER,
+            verticebuffer
+        );
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            vertices,
+            gl.STATIC_DRAW
+        );
+
+        gl.bindBuffer(
+            gl.ARRAY_BUFFER, 
+            colorBuffer
+        );
+
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            colors,
+            gl.STATIC_DRAW
+        );
 
         drawScene();
     }
@@ -236,7 +253,7 @@ function bresenham(x1, x2, y1, y2, vArray, cArray) {
     while (true) {
 
         vArray.push((x1 / canvas.width) * 2 - 1,-((y1 / canvas.height) * 2 - 1));
-        cArray.push(0.0, 0.0, 1.0);
+        cArray.push(...currentColor);
 
         if (x1 === x2 && y1 === y2) {
             break;
@@ -260,10 +277,79 @@ function bresenham(x1, x2, y1, y2, vArray, cArray) {
 // 10. INTERAÇÃO COM O TECLADO
 // --------------------------------------------------
 
+document.addEventListener("keydown", keyboardClick, false);
 
+function keyboardClick(event) {
+
+    switch(event.key) {
+
+        case "0":
+            currentColor = [1.0, 1.0, 1.0];
+            break;
+
+        case "1":
+            currentColor = [1.0, 0.0, 0.0];
+            break;
+
+        case "2":
+            currentColor = [0.0, 1.0, 0.0];
+            break;
+
+        case "3":
+            currentColor = [0.0, 0.0, 1.0];
+            break;
+
+        case "4":
+            currentColor = [1.0, 1.0, 0.0];
+            break;
+
+        case "5":
+            currentColor = [1.0, 0.0, 1.0];
+            break;
+
+        case "6":
+            currentColor = [0.0, 1.0, 1.0];
+            break;
+
+        case "7":
+            currentColor = [1.0, 0.5, 0.0];
+            break;
+
+        case "8":
+            currentColor = [0.5, 0.0, 1.0];
+            break;
+
+        case "9":
+            currentColor = [1.0, 0.4, 0.7];
+            break;
+
+        default:
+            return;
+    }
+
+  for (let i = 0; i < colors.length; i += 3) {
+        colors[i]     = currentColor[0];
+        colors[i + 1] = currentColor[1];
+        colors[i + 2] = currentColor[2];
+    }
+
+    // Atualizar o buffer de cores
+    gl.bindBuffer(
+        gl.ARRAY_BUFFER,
+        colorBuffer
+    );
+
+    gl.bufferData(
+        gl.ARRAY_BUFFER,
+        colors,
+        gl.STATIC_DRAW
+    );
+
+    drawScene();
+}
 
 // --------------------------------------------------
-// 10. LIMPAR TELA
+// 11. LIMPAR TELA
 // --------------------------------------------------
 
 gl.clearColor(0.1, 0.1, 0.1, 1.0);
@@ -272,7 +358,7 @@ gl.clear(gl.COLOR_BUFFER_BIT);
 
 
 // --------------------------------------------------
-// 11. DESENHAR
+// 12. DESENHAR
 // --------------------------------------------------
 
 gl.useProgram(program);
