@@ -404,7 +404,7 @@ document.addEventListener(
 
 function keyboardClick(event) {
   switch(event.key) {
-      case "ArrowUp":
+    case "ArrowUp":
     
         if (tyBD < 0.75) {
             tyBD += tyBD_offset;
@@ -413,7 +413,7 @@ function keyboardClick(event) {
         MbarraDireita = m3.translation(0.9, tyBD);
         break;
 
-      case "ArrowDown":
+    case "ArrowDown":
         
         if (tyBD > -0.75) {
             tyBD -= tyBD_offset;
@@ -422,7 +422,7 @@ function keyboardClick(event) {
         MbarraDireita = m3.translation(0.9, tyBD);
         break;
 
-      case "w":
+    case "w":
     
         if (tyBE < 0.75) {
             tyBE += tyBE_offset;
@@ -431,7 +431,7 @@ function keyboardClick(event) {
         MbarraEsquerda = m3.translation(-0.9, tyBE);
         break;
 
-      case "s":
+    case "s":
     
         if (tyBE > -0.75) {
             tyBE -= tyBE_offset;
@@ -439,6 +439,18 @@ function keyboardClick(event) {
 
         MbarraEsquerda = m3.translation(-0.9, tyBE);
         break;
+
+    case "r":
+        
+        if (txBola_offset === 0 && tyBola_offset === 0) {
+            txBola = 0.0;
+            tyBola = 0.0;
+            txBola_offset = Math.random() < 0.5 ? 0.008 : -0.008;
+            tyBola_offset = Math.random() < 0.5 ? 0.005 : -0.005;
+
+            MbolaCentro = m3.identity();
+        }
+        break;   
 
       default:
           return;
