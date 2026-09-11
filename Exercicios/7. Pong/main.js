@@ -344,13 +344,41 @@ let tyBola_offset = 0.005;
 function atualizaAnimacao(){
     txBola += txBola_offset;
 
-    if (txBola > 0.95 || txBola < -0.95) {
+    if (
+        txBola >= 0.80 &&
+        txBola <= 0.85 &&
+        tyBola >= tyBD - 0.25 &&
+        tyBola <= tyBD + 0.25
+    ) {
         txBola_offset = -txBola_offset;
     }
 
+    if (
+        txBola <= -0.80 &&
+        txBola >= -0.85 &&
+        tyBola >= tyBE - 0.25 &&
+        tyBola <= tyBE + 0.25 
+    ) {
+        txBola_offset = -txBola_offset;
+    }
+
+    if (txBola >= 0.95) {
+        txBola_offset = 0;
+        tyBola_offset = 0;
+    }
+
+    if (txBola <= -0.95) {
+        txBola_offset = 0;
+        tyBola_offset = 0;
+    }
+
     tyBola += tyBola_offset;
-    
-    if (tyBola > 0.95 || tyBola < -0.95) {
+
+    if (tyBola >= 0.95) {
+        tyBola_offset = -tyBola_offset;
+    }
+
+    if (tyBola <= -0.95) {
         tyBola_offset = -tyBola_offset;
     }
 
