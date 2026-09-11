@@ -340,46 +340,40 @@ let txBola = 0.0;
 let tyBola = 0.0;
 let txBola_offset = 0.008;
 let tyBola_offset = 0.005;
+let gameOver = false;
 
 function atualizaAnimacao(){
     txBola += txBola_offset;
 
     if (
-        txBola >= 0.80 &&
+        (txBola >= 0.80 &&
         txBola <= 0.85 &&
         tyBola >= tyBD - 0.25 &&
-        tyBola <= tyBD + 0.25
-    ) {
-        txBola_offset = -txBola_offset;
-    }
-
-    if (
-        txBola <= -0.80 &&
+        tyBola <= tyBD + 0.25) ||
+        (txBola <= -0.80 &&
         txBola >= -0.85 &&
         tyBola >= tyBE - 0.25 &&
-        tyBola <= tyBE + 0.25 
+        tyBola <= tyBE + 0.25)
     ) {
         txBola_offset = -txBola_offset;
-    }
-
-    if (txBola >= 0.95) {
-        txBola_offset = 0;
-        tyBola_offset = 0;
-    }
-
-    if (txBola <= -0.95) {
-        txBola_offset = 0;
-        tyBola_offset = 0;
     }
 
     tyBola += tyBola_offset;
 
-    if (tyBola >= 0.95) {
+    if (tyBola >= 0.95 || tyBola <= -0.95) {
         tyBola_offset = -tyBola_offset;
     }
 
-    if (tyBola <= -0.95) {
-        tyBola_offset = -tyBola_offset;
+    if (txBola >= 0.95 || txBola <= -0.95) {
+        txBola_offset = 0;
+        tyBola_offset = 0;
+        gameOver = true;
+    }
+
+    if (gameOver) {
+        document.getElementById("gameOver").style.display = "block";
+    } else {
+        document.getElementById("gameOver").style.display = "none";
     }
 
     MbolaCentro = m3.translation(txBola, tyBola);
@@ -441,7 +435,7 @@ function keyboardClick(event) {
         break;
 
     case "r":
-        
+
         if (txBola_offset === 0 && tyBola_offset === 0) {
             txBola = 0.0;
             tyBola = 0.0;
@@ -449,7 +443,10 @@ function keyboardClick(event) {
             tyBola_offset = Math.random() < 0.5 ? 0.005 : -0.005;
 
             MbolaCentro = m3.identity();
+
+            gameOver = false;
         }
+        
         break;   
 
       default:
