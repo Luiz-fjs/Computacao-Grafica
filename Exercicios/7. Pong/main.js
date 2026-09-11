@@ -377,40 +377,36 @@ document.addEventListener(
 function keyboardClick(event) {
   switch(event.key) {
       case "ArrowUp":
-        tyBD += tyBD_offset;
     
-        if (tyBD > 0.95) {
-            tyBD = tyBD;
+        if (tyBD < 0.75) {
+            tyBD += tyBD_offset;
         }
 
         MbarraDireita = m3.translation(0.9, tyBD);
         break;
 
       case "ArrowDown":
-        tyBD -= tyBD_offset;
-    
-        if (tyBD < -0.95) {
-            tyBD = tyBD;
+        
+        if (tyBD > -0.75) {
+            tyBD -= tyBD_offset;
         }
 
         MbarraDireita = m3.translation(0.9, tyBD);
         break;
 
       case "w":
-        tyBE += tyBE_offset;
     
-        if (tyBE > 0.95) {
-            tyBE = tyBE;
+        if (tyBE < 0.75) {
+            tyBE += tyBE_offset;
         }
 
         MbarraEsquerda = m3.translation(-0.9, tyBE);
         break;
 
       case "s":
-        tyBE -= tyBE_offset;
     
-        if (tyBE < -0.95) {
-            tyBE = tyBE;
+        if (tyBE > -0.75) {
+            tyBE -= tyBE_offset;
         }
 
         MbarraEsquerda = m3.translation(-0.9, tyBE);
