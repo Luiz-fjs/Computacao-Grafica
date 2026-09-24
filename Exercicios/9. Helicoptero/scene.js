@@ -21,20 +21,25 @@ class Scene {
         this.helicopterTailPropeller = new HelicopterTailPropeller();
 
         this.theta = 0.0;
-        this.position = { x: 0.0, y: 0.0 };
-        this.moveSpeed = 0.01;
+        this.position = { x: 0.0, y: 0.0, z: 0.0 };
+        this.moveSpeed = 0.02;
+        this.distanceSpeed = 0.01;
         this.keys = {};
 
         window.addEventListener("keydown", (event) => {
-            if (event.key.startsWith("Arrow")) {
-                this.keys[event.key] = true;
+            const key = event.key.toLowerCase();
+
+            if (key.startsWith("arrow") || key === "w" || key === "s") {
+                this.keys[key] = true;
                 event.preventDefault();
             }
         });
 
         window.addEventListener("keyup", (event) => {
-            if (event.key.startsWith("Arrow")) {
-                this.keys[event.key] = false;
+            const key = event.key.toLowerCase();
+
+            if (key.startsWith("arrow") || key === "w" || key === "s") {
+                this.keys[key] = false;
                 event.preventDefault();
             }
         });
@@ -47,23 +52,37 @@ class Scene {
     update() {
         this.theta += 0.01;
 
-        if (this.keys.ArrowLeft) {
+        if (this.keys.arrowleft) {
             this.position.x -= this.moveSpeed;
         }
-        if (this.keys.ArrowRight) {
+        if (this.keys.arrowright) {
             this.position.x += this.moveSpeed;
         }
-        if (this.keys.ArrowUp) {
+        if (this.keys.arrowup) {
             this.position.y += this.moveSpeed;
         }
-        if (this.keys.ArrowDown) {
+        if (this.keys.arrowdown) {
             this.position.y -= this.moveSpeed;
         }
+        if (this.keys.w) {
+            this.position.z += this.distanceSpeed;
+        }
+        if (this.keys.s) {
+            this.position.z = Math.max(
+                0.0,
+                this.position.z - this.distanceSpeed
+            );
+        }
 
-        const helicopterTransform = m4.translation(
-            this.position.x,
-            this.position.y,
-            0
+        const scale = 1 / (1 + this.position.z);
+
+        const helicopterTransform = m4.multiply(
+            m4.translation(
+                this.position.x,
+                this.position.y,
+                this.position.z
+            ),
+            m4.scaling(scale, scale, scale)
         );
 
         // Mantem as partes fixas no lugar.
