@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Totóbolim</title>
+    <style>
+        html, body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #1d1a22;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+        canvas { display: block; }
+        #hud {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            max-width: 320px;
+            padding: 14px 16px;
+            border-radius: 10px;
+            background: rgba(10, 10, 14, 0.72);
+            color: #f2f2f2;
+            font-size: 13px;
+            line-height: 1.5;
+            pointer-events: none;
+        }
+        #hud h1 { margin: 0 0 6px; font-size: 18px; }
+        #hud .score { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+        #hud .red { color: #ff6b6b; }
+        #hud .blue { color: #6ea8ff; }
+        #hud .keys { margin-top: 8px; color: #bdbdbd; }
+        #hud .debug { color: #8d8d95; }
+        #hud .power-up { margin-top: 4px; color: #ffd447; font-weight: 700; }
+        #hud kbd {
+            display: inline-block;
+            min-width: 14px;
+            padding: 0 4px;
+            border: 1px solid #666;
+            border-radius: 4px;
+            background: #2a2a30;
+            font-size: 11px;
+            text-align: center;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+
+    <div id="hud">
+        <h1>Totóbolim</h1>
+        <div id="hud-status"></div>
+        <div class="keys">
+            <div><span class="red">Red</span>: <kbd>W</kbd>/<kbd>S</kbd> slide · <kbd>C</kbd> kick</div>
+            <div><span class="blue">Blue</span>: <kbd>↑</kbd>/<kbd>↓</kbd> slide · <kbd>J</kbd> kick</div>
+            <div class="debug">Debug: <kbd>P</kbd> 2D power-up · <kbd>T</kbd> switch half</div>
+            <div class="debug"><kbd>R</kbd> kick-off · <kbd>B</kbd> switch ball · <kbd>G</kbd> axes + grid</div>
+        </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+
+</body>
+</html>
