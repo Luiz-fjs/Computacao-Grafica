@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Totóbolim Textures</title>
+    <style>
+        :root {
+            --bg: #1d1a22;
+            --card: #2a2631;
+            --text: #f2f2f2;
+            --muted: #a9a6b0;
+            --link: #8fb8ff;
+        }
+        body {
+            margin: 0;
+            padding: 24px 16px 48px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+        main { max-width: 1200px; margin: 0 auto; }
+        h1 { margin: 0 0 4px; }
+        h2 { margin: 32px 0 12px; }
+        header p, .note { color: var(--muted); margin: 4px 0; }
+        a { color: var(--link); }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+        .card { background: var(--card); border-radius: 10px; overflow: hidden; }
+        .frame {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Xadrez de fundo para mostrar transparência (rede do gol) */
+            background: repeating-conic-gradient(#3a3640 0 25%, #302c36 0 50%) 0 0 / 20px 20px;
+        }
+        .frame canvas, .frame img { max-width: 100%; max-height: 100%; }
+        .info { padding: 10px 12px 12px; }
+        .info h3 { margin: 0 0 4px; font-size: 15px; }
+        .info p { margin: 0 0 4px; font-size: 13px; }
+        .info .meta { color: var(--muted); font-size: 12px; word-break: break-all; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <main>
+        <header>
+            <h1>Totóbolim textures</h1>
+            <p>Every texture used in the game. <a href="index.html">← Back to the game</a></p>
+        </header>
+
+        <h2>Generated in code</h2>
+        <p class="note">Drawn on a 2D canvas by <code>src/textures.js</code> each time the game loads (noise is random, so details change slightly per run). PNG copies are in <code>assets/textures/generated/</code>.</p>
+        <section id="generated" class="grid"></section>
+
+        <h2>External image files</h2>
+        <p class="note">Downloaded CC0 assets (Poly Haven and ambientCG).</p>
+        <section id="external" class="grid"></section>
+    </main>
+
+    <script type="module" src="src/texture-gallery.js"></script>
+</body>
+</html>

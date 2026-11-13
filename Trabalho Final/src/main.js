@@ -2,8 +2,10 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createTable, TABLE } from "./table.js";
 import { createBalls, createBallStand, BALL_TYPES } from "./balls.js";
-import { createRoom, createLights, LAMP_LAYER } from "./environment.js";
-import { createWoodTexture } from "./textures.js";
+import { createRoom, createLights, toggleLight, LAMP_LAYER } from "./environment.js";
+import { loadWoodTextures, createUvCheckerTexture } from "./textures.js";
+import { updateBall } from "./physics.js";
+import { createPowerUp, updatePowerUp } from "./powerup.js";
 
 // ==================================================
 // RENDERER + SCENE
@@ -35,12 +37,12 @@ scene.add(table);
 scene.add(createRoom());
 const lights = createLights(scene);
 
-const standWood = new THREE.MeshStandardMaterial({ map: createWoodTexture("#6b3f1f", "#3a200d"), roughness: 0.55 });
+const standWood = new THREE.MeshStandardMaterial({ ...loadWoodTextures("light"), roughness: 1 });
 const standMetal = new THREE.MeshStandardMaterial({ color: "#c9ced6", metalness: 0.95, roughness: 0.22, envMap });
 const ballStand = createBallStand(standWood, standMetal);
 scene.add(ballStand);
 
-const balls = createBalls();
+const balls = createBalls(envMap);
 Object.values(balls).forEach((ball) => scene.add(ball));
 
 const ballOrder = Object.keys(BALL_TYPES);
@@ -61,6 +63,12 @@ function placeBalls() {
     });
 }
 
+// Prévia do modelo de power-up: só decorativo por enquanto (ainda não é
+// sorteado pelo campo nem coletado; a visão 2D continua na tecla P)
+const powerUpPreview = createPowerUp("view2d");
+powerUpPreview.position.set(-3, 0, 2.3);
+scene.add(powerUpPreview);
+
 // Eixos e grade para conferir posições/escalas (tecla G)
 const helpers = new THREE.Group();
 helpers.add(new THREE.AxesHelper(4));
@@ -71,6 +79,47 @@ grid.material.transparent = true;
 helpers.add(grid);
 helpers.visible = false;
 scene.add(helpers);
+
+// ==================================================
+// UV CHECKER (tecla U)
+// Troca o "map" de todo material texturizado por uma grade numerada,
+// mantendo repeat/offset/wrap de cada textura original. Mostra como as
+// coordenadas UV de cada malha cobrem a superfície.
+// ==================================================
+
+const uvCheckerTexture = createUvCheckerTexture();
+const originalMaps = new Map(); // material -> textura original
+
+function toggleUvChecker() {
+    if (originalMaps.size > 0) {
+        originalMaps.forEach((map, material) => {
+            material.map.dispose();
+            material.map = map;
+            material.needsUpdate = true;
+        });
+        originalMaps.clear();
+        return;
+    }
+
+    scene.traverse((object) => {
+        if (!object.isMesh) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+            if (!material.map || originalMaps.has(material)) continue;
+
+            const checker = uvCheckerTexture.clone();
+            checker.wrapS = material.map.wrapS;
+            checker.wrapT = material.map.wrapT;
+            checker.repeat.copy(material.map.repeat);
+            checker.offset.copy(material.map.offset);
+            checker.needsUpdate = true;
+
+            originalMaps.set(material, material.map);
+            material.map = checker;
+            material.needsUpdate = true;
+        }
+    });
+}
 
 // ==================================================
 // CAMERA (uma única PerspectiveCamera que transita entre poses)
@@ -125,8 +174,69 @@ function setCameraPose(name, instant = false) {
     }
 }
 
+// ==================================================
+// SIDE SWITCH (troca de tempo)
+// A câmera gira 180° no sentido horário (visto de cima) em torno do centro
+// do campo, sempre olhando para ele. Em coordenadas polares no plano XZ,
+// ângulo = atan2(x, z); sentido horário visto de cima = ângulo diminuindo.
+// ==================================================
+
+const SIDE_SWITCH_DURATION = 3; // segundos
+let sideSwitch = null;
+
+function polarOf(vector) {
+    return { angle: Math.atan2(vector.x, vector.z), radius: Math.hypot(vector.x, vector.z) };
+}
+
+function startSideSwitch(onFinish) {
+    const camStart = polarOf(camera.position);
+    const camEnd = polarOf(cameraPose.position);
+    const targetStart = polarOf(cameraTarget);
+    const targetEnd = polarOf(cameraPose.target);
+
+    sideSwitch = {
+        time: 0,
+        startAngle: camStart.angle,
+        sweep: THREE.MathUtils.euclideanModulo(camStart.angle - camEnd.angle, Math.PI * 2),
+        radius: [camStart.radius, camEnd.radius],
+        height: [camera.position.y, cameraPose.position.y],
+        targetRadius: [targetStart.radius, targetEnd.radius],
+        targetHeight: [cameraTarget.y, cameraPose.target.y],
+        fov: [camera.fov, cameraPose.fov],
+        onFinish,
+    };
+}
+
+function updateSideSwitch(dt) {
+    const s = sideSwitch;
+    s.time += dt;
+    const t = Math.min(s.time / SIDE_SWITCH_DURATION, 1);
+    const eased = t * t * (3 - 2 * t); // smoothstep: começa e termina devagar
+    const lerp = ([a, b]) => a + (b - a) * eased;
+
+    const angle = s.startAngle - s.sweep * eased;
+    const radius = lerp(s.radius);
+    const targetRadius = lerp(s.targetRadius);
+
+    camera.position.set(Math.sin(angle) * radius, lerp(s.height), Math.cos(angle) * radius);
+    cameraTarget.set(Math.sin(angle) * targetRadius, lerp(s.targetHeight), Math.cos(angle) * targetRadius);
+    camera.fov = lerp(s.fov);
+    camera.updateProjectionMatrix();
+    camera.lookAt(cameraTarget);
+
+    if (t >= 1) {
+        sideSwitch = null;
+        s.onFinish();
+    }
+}
+
 // Interpolação suave da câmera até a pose atual
 function updateCamera(dt) {
+    if (sideSwitch) {
+        updateSideSwitch(dt);
+        return;
+    }
+
     const t = 1 - Math.exp(-4 * dt);
     camera.position.lerp(cameraPose.position, t);
     cameraTarget.lerp(cameraPose.target, t);
@@ -147,6 +257,7 @@ const match = {
     clock: HALF_DURATION,
     score: { red: 0, blue: 0 },
     powerUpTime: 0,
+    paused: false, // jogo congelado durante o giro da câmera
 };
 
 const ballVelocity = new THREE.Vector3();
@@ -180,12 +291,29 @@ function kickOff() {
     ballVelocity.set(side * Math.cos(angle) * speed, 0, Math.sin(angle) * speed);
 }
 
-function startHalf(half) {
+// animateCamera = false só no carregamento (câmera já nasce no lugar)
+function startHalf(half, animateCamera = true) {
     match.half = half;
     match.clock = HALF_DURATION;
     match.powerUpTime = 0;
     setCameraPose(half === 1 ? "firstHalf" : "secondHalf");
-    kickOff();
+
+    if (!animateCamera) {
+        kickOff();
+        updateHud();
+        return;
+    }
+
+    // Bola parada no centro enquanto a câmera gira; a saída vem depois
+    const ball = balls[ballOrder[activeBallIndex]];
+    ball.position.set(0, ball.userData.radius, 0);
+    ballVelocity.set(0, 0, 0);
+    match.paused = true;
+    startSideSwitch(() => {
+        match.paused = false;
+        kickOff();
+        updateHud();
+    });
     updateHud();
 }
 
@@ -194,46 +322,11 @@ function activatePowerUp() {
     setCameraPose("topDown");
 }
 
-// ==================================================
-// BALL MOVEMENT (prévia: atrito + quique nas paredes + gol)
-// Colisão com os bonecos ainda não implementada.
-// ==================================================
-
-function updateBall(dt) {
-    const ball = balls[ballOrder[activeBallIndex]];
-    const { radius, friction, bounciness } = ball.userData;
-    const halfLength = TABLE.fieldLength / 2;
-    const halfWidth = TABLE.fieldWidth / 2;
-
-    ball.position.addScaledVector(ballVelocity, dt);
-    ballVelocity.multiplyScalar(Math.exp(-friction * 0.5 * dt));
-
-    // Rolamento visual: gira em torno do eixo perpendicular ao movimento
-    ball.rotation.z -= (ballVelocity.x * dt) / radius;
-    ball.rotation.x += (ballVelocity.z * dt) / radius;
-
-    // Paredes laterais
-    if (Math.abs(ball.position.z) > halfWidth - radius) {
-        ball.position.z = Math.sign(ball.position.z) * (halfWidth - radius);
-        ballVelocity.z *= -bounciness;
-    }
-
-    // Fundo: gol se estiver dentro da boca do gol, senão quica
-    if (Math.abs(ball.position.x) > halfLength - radius) {
-        const insideGoalMouth = Math.abs(ball.position.z) < TABLE.goalWidth / 2 - radius;
-        if (insideGoalMouth) {
-            if (Math.abs(ball.position.x) > halfLength + radius) {
-                const scorer = ball.position.x < 0 ? "blue" : "red";
-                match.score[scorer] = Math.min(match.score[scorer] + 1, 6);
-                updateScoreCounters();
-                kickOff();
-                updateHud();
-            }
-        } else {
-            ball.position.x = Math.sign(ball.position.x) * (halfLength - radius);
-            ballVelocity.x *= -bounciness;
-        }
-    }
+function onGoal(scorer) {
+    match.score[scorer] = Math.min(match.score[scorer] + 1, 6);
+    updateScoreCounters();
+    kickOff();
+    updateHud();
 }
 
 // ==================================================
@@ -269,8 +362,21 @@ window.addEventListener("keydown", (event) => {
     if (key === CONTROLS.blue.kick) kick("blue");
     if (key.startsWith("arrow")) event.preventDefault();
 
-    // Teclas de depuração desta etapa
+    // Teclas 1–6: liga/desliga cada fonte de luz
+    const lightIndex = Number(key) - 1;
+    if (lightIndex >= 0 && lightIndex < lights.switchable.length) {
+        toggleLight(lights.switchable[lightIndex]);
+        updateHud();
+    }
+
+    // Teclas de depuração (U e G funcionam até durante o giro da câmera)
+    if (key === "u") {
+        toggleUvChecker();
+        updateHud();
+    }
     if (key === "g") helpers.visible = !helpers.visible;
+    if (key === "h") hudPanel.hidden = !hudPanel.hidden;
+    if (match.paused) return;
     if (key === "p") activatePowerUp();
     if (key === "t") startHalf(match.half === 1 ? 2 : 1);
     if (key === "r") kickOff();
@@ -295,7 +401,9 @@ function updateRods(dt) {
 
         teamLines[team].forEach((line) => {
             const data = line.userData;
-            line.position.z = THREE.MathUtils.clamp(line.position.z + input * slideSpeed * dt, data.minZ, data.maxZ);
+            const previousZ = line.position.z;
+            line.position.z = THREE.MathUtils.clamp(previousZ + input * slideSpeed * dt, data.minZ, data.maxZ);
+            data.slideVelocity = (line.position.z - previousZ) / dt;
         });
     }
 }
@@ -304,6 +412,7 @@ function updateRods(dt) {
 // HUD
 // ==================================================
 
+const hudPanel = document.getElementById("hud");
 const hud = document.getElementById("hud-status");
 
 function formatClock(seconds) {
@@ -321,9 +430,15 @@ function updateHud() {
             <span class="red">RED ${match.score.red}</span> × <span class="blue">${match.score.blue} BLUE</span>
         </div>
         <div>Half: <b>${match.half}</b> · Clock: <b>${formatClock(match.clock)}</b></div>
-        <div>Camera: <b>${cameraPose.label}</b></div>
+        <div>Camera: <b>${sideSwitch ? "Switching sides…" : cameraPose.label}</b></div>
         <div>Ball on field: <b>${ball.label}</b></div>
         ${powerUp}
+        <div class="lights">
+            ${lights.switchable.map((entry, i) => `
+                <span class="${entry.light.visible ? "on" : "off"}">${i + 1} ${entry.label}</span>
+            `).join("")}
+        </div>
+        ${originalMaps.size > 0 ? `<div class="power-up">UV checker on</div>` : ""}
     `;
 }
 
@@ -348,7 +463,7 @@ function animate() {
     const time = clock.elapsedTime;
 
     // Relógio da partida: ao fim do 1º tempo troca para o 2º
-    match.clock -= dt;
+    if (!match.paused) match.clock -= dt;
     if (match.clock <= 0 && match.half === 1) startHalf(2);
 
     // Power-up 2D com duração limitada
@@ -357,18 +472,19 @@ function animate() {
         if (match.powerUpTime <= 0) setCameraPose(match.half === 1 ? "firstHalf" : "secondHalf");
     }
 
-    updateRods(dt);
-    updateBall(dt);
+    if (!match.paused) updateRods(dt);
 
     rodLines.forEach((line) => {
         const data = line.userData;
         const direction = data.team === "red" ? 1 : -1;
+        const previousRotation = line.rotation.z;
 
         if (data.kickTime >= 0) {
             data.kickTime += dt;
             line.rotation.z = direction * kickAngle(data.kickTime);
             if (data.kickTime > 0.5) data.kickTime = -1;
         }
+        data.angularVelocity = (line.rotation.z - previousRotation) / dt;
 
         // Pequena animação ociosa: braços balançando e cabeça olhando ao redor
         data.players.forEach((player, i) => {
@@ -379,6 +495,11 @@ function animate() {
             parts.head.rotation.y = Math.sin(phase * 0.5) * 0.25;
         });
     });
+
+    updatePowerUp(powerUpPreview, time);
+
+    // Bola depois das hastes, para usar as velocidades deste frame
+    if (!match.paused) updateBall(balls[ballOrder[activeBallIndex]], ballVelocity, rodLines, dt, onGoal);
 
     updateCamera(dt);
 
@@ -398,7 +519,7 @@ function animate() {
 
 placeBalls();
 setCameraPose("firstHalf", true);
-startHalf(1); // sorteia o lado da saída de bola
+startHalf(1, false); // sorteia o lado da saída de bola
 animate();
 
 // ==================================================
@@ -412,4 +533,4 @@ window.addEventListener("resize", () => {
 });
 
 // Exposto para inspeção no console do navegador
-window.totobolim = { scene, camera, rodLines, balls, lights, match };
+window.totobolim = { scene, camera, rodLines, balls, lights, match, ballVelocity, cameraTarget };

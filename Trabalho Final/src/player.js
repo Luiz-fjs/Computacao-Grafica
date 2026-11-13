@@ -32,7 +32,7 @@ export const TEAMS = {
     },
 };
 
-const SKIN_TONES = ["#f1c7a5", "#d9a17a", "#a8714d", "#7a4b2e", "#e8b896"];
+export const SKIN_TONES = ["#f1c7a5", "#d9a17a", "#a8714d", "#7a4b2e", "#e8b896"];
 const HAIR_COLORS = ["#2b1a0f", "#111111", "#6b3e1f", "#d9b25c", "#3d2314"];
 
 // ==================================================

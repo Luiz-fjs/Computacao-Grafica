@@ -2,9 +2,9 @@ import * as THREE from "three";
 
 // ==================================================
 // HELPERS
-// Todas as texturas são geradas proceduralmente em um
-// <canvas> 2D e convertidas em THREE.CanvasTexture.
-// Assim nenhum arquivo de imagem externo é necessário.
+// A maior parte das texturas é gerada proceduralmente em um <canvas> 2D
+// e convertida em THREE.CanvasTexture. As fotográficas (PBR do ambientCG)
+// são carregadas de arquivos por loadImageTextureSet.
 // ==================================================
 
 function createCanvas(width, height) {
@@ -38,22 +38,47 @@ function sprinkleNoise(ctx, width, height, count, colors, maxSize = 2) {
 }
 
 // ==================================================
-// FIELD (grama listrada + marcações do campo)
-// O canvas tem a mesma proporção do campo (12 x 7).
+// IMAGE TEXTURE SET (PBR do ambientCG: cor, normal e rugosidade)
+// basePath sem sufixo, ex.: "assets/textures/grass005/Grass005_1K-JPG".
+// Só o mapa de cor fica em sRGB; normal/rugosidade são dados lineares.
 // ==================================================
 
-export function createFieldTexture(fieldLength, fieldWidth) {
+const imageLoader = new THREE.TextureLoader();
+
+export function loadImageTextureSet(basePath, maps, repeatX = 1, repeatY = 1) {
+    const set = {};
+    for (const [slot, suffix] of Object.entries(maps)) {
+        const texture = imageLoader.load(`${basePath}_${suffix}.jpg`);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(repeatX, repeatY);
+        texture.anisotropy = 8;
+        if (slot === "map") texture.colorSpace = THREE.SRGBColorSpace;
+        set[slot] = texture;
+    }
+    return set;
+}
+
+// Mapas usados pelas texturas do ambientCG neste projeto
+export const PBR_MAPS = { map: "Color", normalMap: "NormalGL", roughnessMap: "Roughness" };
+
+// ==================================================
+// FIELD MARKINGS (camada transparente sobre a grama fotográfica)
+// Faixas de corte translúcidas + linhas brancas do campo. O canvas tem a
+// mesma proporção do campo (12 x 7), então cobre o plano sem esticar.
+// ==================================================
+
+export function createFieldMarkingsTexture(fieldLength, fieldWidth) {
     const width = 1536;
     const height = Math.round(width * fieldWidth / fieldLength);
     const { canvas, ctx } = createCanvas(width, height);
 
-    // Faixas de grama alternadas
+    // Faixas de corte da grama: clareiam/escurecem levemente a foto embaixo
     const stripes = 12;
     for (let i = 0; i < stripes; i++) {
-        ctx.fillStyle = i % 2 === 0 ? "#2f8f3a" : "#38a145";
+        ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
         ctx.fillRect(i * width / stripes, 0, width / stripes + 1, height);
     }
-    sprinkleNoise(ctx, width, height, 40000, ["#2a7f33", "#43ad4f", "#2e8a38"], 2);
 
     // Marcações em branco
     const px = width / fieldLength; // pixels por unidade do mundo
@@ -106,106 +131,21 @@ export function createFieldTexture(fieldLength, fieldWidth) {
 }
 
 // ==================================================
-// WOOD (veios de madeira, usado na mesa e nos pés)
+// WOOD (fotográficas do ambientCG, CC0)
+//   light: Wood026, madeira clara da mesa e do expositor
+//   dark:  Wood051, madeira escura dos pés, frisos, rampas e piso do gol
+// As peças usam UVs em unidades do mundo (uv.js), então repeat = 1 / tamanho
+// da repetição deixa a madeira na mesma escala em todas elas.
 // ==================================================
 
-export function createWoodTexture(baseColor, grainColor, repeatX = 1, repeatY = 1) {
-    const { canvas, ctx } = createCanvas(512, 512);
+export const WOOD_TEXTURES = {
+    light: "assets/textures/wood026/Wood026_1K-JPG",
+    dark: "assets/textures/wood051/Wood051_1K-JPG",
+};
+export const WOOD_TILE_SIZE = 2.5;
 
-    ctx.fillStyle = baseColor;
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Veios ondulados horizontais
-    ctx.strokeStyle = grainColor;
-    for (let i = 0; i < 70; i++) {
-        const y = Math.random() * 512;
-        const amplitude = 2 + Math.random() * 6;
-        const frequency = 0.01 + Math.random() * 0.02;
-        ctx.globalAlpha = 0.15 + Math.random() * 0.35;
-        ctx.lineWidth = 0.5 + Math.random() * 2.5;
-        ctx.beginPath();
-        for (let x = 0; x <= 512; x += 8) {
-            const yy = y + Math.sin(x * frequency + i) * amplitude;
-            x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
-        }
-        ctx.stroke();
-    }
-
-    // Alguns "nós" na madeira
-    for (let i = 0; i < 3; i++) {
-        const cx = Math.random() * 512;
-        const cy = Math.random() * 512;
-        for (let r = 4; r < 22; r += 4) {
-            ctx.globalAlpha = 0.25;
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, r * 2.2, r, 0, 0, Math.PI * 2);
-            ctx.stroke();
-        }
-    }
-    ctx.globalAlpha = 1;
-
-    return toTexture(canvas, repeatX, repeatY);
-}
-
-// ==================================================
-// FLOOR (tacos de madeira do piso da sala)
-// ==================================================
-
-export function createFloorTexture() {
-    const { canvas, ctx } = createCanvas(512, 512);
-    const plankHeight = 64;
-    const tones = ["#8a5a35", "#7d5030", "#94643d", "#865733"];
-
-    for (let row = 0; row < 512 / plankHeight; row++) {
-        const offset = (row % 2) * 128;
-        for (let col = -1; col < 3; col++) {
-            const x = col * 256 + offset;
-            ctx.fillStyle = tones[(row + col + 4) % tones.length];
-            ctx.fillRect(x, row * plankHeight, 256, plankHeight);
-            ctx.strokeStyle = "#4a2e18";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x, row * plankHeight, 256, plankHeight);
-        }
-    }
-    sprinkleNoise(ctx, 512, 512, 6000, ["rgba(60,35,15,0.25)", "rgba(200,150,100,0.15)"], 3);
-
-    return toTexture(canvas, 10, 10);
-}
-
-// ==================================================
-// RUG (tapete embaixo da mesa)
-// ==================================================
-
-export function createRugTexture() {
-    const { canvas, ctx } = createCanvas(512, 512);
-
-    ctx.fillStyle = "#6b1f2a";
-    ctx.fillRect(0, 0, 512, 512);
-
-    ctx.strokeStyle = "#e0b45a";
-    ctx.lineWidth = 10;
-    ctx.strokeRect(24, 24, 464, 464);
-    ctx.lineWidth = 4;
-    ctx.strokeRect(48, 48, 416, 416);
-
-    // Losangos decorativos
-    ctx.fillStyle = "#24314f";
-    for (let i = 0; i < 5; i++) {
-        for (let j = 0; j < 5; j++) {
-            const cx = 96 + i * 80;
-            const cy = 96 + j * 80;
-            ctx.beginPath();
-            ctx.moveTo(cx, cy - 22);
-            ctx.lineTo(cx + 22, cy);
-            ctx.lineTo(cx, cy + 22);
-            ctx.lineTo(cx - 22, cy);
-            ctx.closePath();
-            ctx.fill();
-        }
-    }
-    sprinkleNoise(ctx, 512, 512, 15000, ["rgba(0,0,0,0.2)", "rgba(255,255,255,0.06)"], 2);
-
-    return toTexture(canvas);
+export function loadWoodTextures(kind) {
+    return loadImageTextureSet(WOOD_TEXTURES[kind], PBR_MAPS, 1 / WOOD_TILE_SIZE, 1 / WOOD_TILE_SIZE);
 }
 
 // ==================================================
@@ -420,39 +360,6 @@ export function createNormalBallTexture() {
     return toTexture(canvas);
 }
 
-// Bola pesada: ferro escuro com faixas e rebites
-export function createHeavyBallTexture() {
-    const { canvas, ctx } = createCanvas(512, 256);
-
-    ctx.fillStyle = "#3a3d42";
-    ctx.fillRect(0, 0, 512, 256);
-    sprinkleNoise(ctx, 512, 256, 12000, ["#2a2c30", "#4c5057", "#55595f"], 3);
-
-    // Faixas de reforço
-    ctx.fillStyle = "#1f2124";
-    ctx.fillRect(0, 118, 512, 20);
-    for (let x = 0; x < 512; x += 128) {
-        ctx.fillRect(x, 0, 14, 256);
-    }
-
-    // Rebites
-    ctx.fillStyle = "#9aa0a8";
-    for (let x = 16; x < 512; x += 32) {
-        ctx.beginPath();
-        ctx.arc(x, 128, 4, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // Marcação de peso
-    ctx.fillStyle = "#f2c94c";
-    ctx.font = "bold 40px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("10KG", 64, 80);
-    ctx.fillText("10KG", 320, 80);
-
-    return toTexture(canvas);
-}
-
 // Bola leve: bola de praia com gomos coloridos
 export function createLightBallTexture() {
     const { canvas, ctx } = createCanvas(512, 256);
@@ -467,6 +374,45 @@ export function createLightBallTexture() {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, 512, 20);
     ctx.fillRect(0, 236, 512, 20);
+
+    return toTexture(canvas);
+}
+
+// ==================================================
+// UV CHECKER (grade de depuração do mapeamento, tecla U)
+// Colunas A–H crescem com U (esquerda → direita) e linhas 1–8 crescem
+// com V (baixo → cima). Com flipY, a base do canvas corresponde a v = 0.
+// A cor muda com U (matiz) e com V (claridade), então dá para ler a
+// orientação e perceber esticamentos em qualquer parte do modelo.
+// ==================================================
+
+export function createUvCheckerTexture() {
+    const size = 512;
+    const cells = 8;
+    const cell = size / cells;
+    const { canvas, ctx } = createCanvas(size, size);
+
+    for (let col = 0; col < cells; col++) {
+        for (let row = 0; row < cells; row++) {
+            const hue = (col / cells) * 300;
+            const lightness = 30 + (row / (cells - 1)) * 40;
+            const dark = (col + row) % 2 === 0;
+            ctx.fillStyle = `hsl(${hue}, 70%, ${dark ? lightness - 12 : lightness}%)`;
+            const y = size - (row + 1) * cell; // linha 1 na base (v = 0)
+            ctx.fillRect(col * cell, y, cell, cell);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 22px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(`${String.fromCharCode(65 + col)}${row + 1}`, col * cell + cell / 2, y + cell / 2);
+        }
+    }
+
+    // Moldura indicando as bordas u = 0/1 e v = 0/1
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, size - 4, size - 4);
 
     return toTexture(canvas);
 }

@@ -1,5 +1,5 @@
 1. Jogo que será desenvolvido
-O Totóbolim será inspirado no jogo brasileiro Pimbolas, utilizando como referência sua proposta de pebolim com modificadores e power-ups. 
+O Totóbolim será inspirado no jogo brasileiro Pimbolas e um pouco no Sports Heads Football Championship utilizando como referência suas propostas de pebolim com modificadores e power-ups. 
 2. Descrição do jogo
 2.1. Personagens e ambiente
 O Totóbolim contará com dois times adversários, cada um composto por cinco personagens humanoides tridimensionais. Os jogadores serão distribuídos em duas linhas ao longo do campo: uma linha mais próxima ao centro, composta por dois personagens, e outra mais próxima ao próprio gol, composta por três personagens.

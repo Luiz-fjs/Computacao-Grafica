@@ -1,11 +1,19 @@
 import * as THREE from "three";
 import { createPlayer, TEAMS } from "./player.js";
 import {
-    createFieldTexture,
-    createWoodTexture,
+    createFieldMarkingsTexture,
+    loadWoodTextures,
     createNetTexture,
     createGripTexture,
+    loadImageTextureSet,
+    PBR_MAPS,
 } from "./textures.js";
+import { applyWorldUVs } from "./uv.js";
+
+// Grama fotográfica "Grass005" (ambientCG, CC0). Cada repetição cobre
+// 2 × 2 unidades, então o campo 12 × 7 recebe 6 × 3,5 repetições.
+const GRASS_TEXTURE = "assets/textures/grass005/Grass005_1K-JPG";
+const GRASS_TILE_SIZE = 2;
 
 // ==================================================
 // DIMENSIONS (unidades do mundo)
@@ -61,16 +69,26 @@ export function createTable(envMap) {
 
     // ---------- materiais ----------
     const woodMaterial = new THREE.MeshStandardMaterial({
-        map: createWoodTexture("#6b3f1f", "#3a200d", 2, 1),
-        roughness: 0.55,
+        ...loadWoodTextures("light"),
+        roughness: 1, // multiplicador: o valor real vem do roughnessMap
     });
     const darkWoodMaterial = new THREE.MeshStandardMaterial({
-        map: createWoodTexture("#3b2414", "#1c0f06", 1, 2),
-        roughness: 0.6,
+        ...loadWoodTextures("dark"),
+        roughness: 1,
     });
     const fieldMaterial = new THREE.MeshStandardMaterial({
-        map: createFieldTexture(L, W),
-        roughness: 0.95,
+        ...loadImageTextureSet(GRASS_TEXTURE, PBR_MAPS, L / GRASS_TILE_SIZE, W / GRASS_TILE_SIZE),
+        roughness: 1,
+    });
+    // Camada transparente com as linhas e as faixas de corte, por cima da grama.
+    // polygonOffset puxa a camada para frente e evita z-fighting com o campo.
+    const markingsMaterial = new THREE.MeshStandardMaterial({
+        map: createFieldMarkingsTexture(L, W),
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        roughness: 1,
     });
     const metalMaterial = new THREE.MeshStandardMaterial({
         color: "#c9ced6",
@@ -92,6 +110,13 @@ export function createTable(envMap) {
     field.rotation.x = -Math.PI / 2;
     field.receiveShadow = true;
     table.add(field);
+
+    const markings = new THREE.Mesh(new THREE.PlaneGeometry(L, W), markingsMaterial);
+    markings.name = "Field markings";
+    markings.rotation.x = -Math.PI / 2;
+    markings.position.y = 0.001;
+    markings.receiveShadow = true;
+    table.add(markings);
 
     // ---------- gabinete (caixa da mesa abaixo do campo) ----------
     const cabinet = new THREE.Mesh(
@@ -188,8 +213,16 @@ export function createTable(envMap) {
     table.add(createScoreCounter("red", -L / 2 + 1.2, W / 2 + T / 2, metalMaterial));
     table.add(createScoreCounter("blue", L / 2 - 1.2, -(W / 2 + T / 2), metalMaterial));
 
+    // Peças de madeira com UV em unidades do mundo (escala igual em todas)
+    table.traverse((child) => {
+        if (child.isMesh && (child.material === woodMaterial || child.material === darkWoodMaterial)) {
+            applyWorldUVs(child.geometry);
+        }
+    });
+
     enableShadows(table);
     field.castShadow = false;
+    markings.castShadow = false;
     table.traverse((child) => {
         if (child.material === netMaterial) child.castShadow = false;
     });
@@ -299,10 +332,22 @@ function createRodLine(line, metalMaterial, blackPlastic) {
     rodLine.name = `${team.name} ${line.role} rod`;
     rodLine.position.set(line.x, rodHeight, 0);
 
-    // A manopla fica do lado do time: vermelho em +Z, azul em -Z
-    const handleSide = line.team === "red" ? 1 : -1;
-    const rodLength = W + 2 * T + 2.6;
-    const rodOffset = handleSide * 0.7;
+    // Curso de deslize: metade do espaço entre bonecos já cobre o campo
+    // inteiro (a bola nunca para, então sempre volta para o alcance). Nas
+    // linhas de 3, o limite é a parede; nas de 2, a trava vem antes.
+    const maxSlot = Math.max(...line.zSlots);
+    const spacing = line.zSlots.length > 1 ? line.zSlots[1] - line.zSlots[0] : W;
+    const travel = Math.min(W / 2 - 0.35 - maxSlot, spacing / 2);
+
+    // Comprimento da haste calculado pelo curso: mesmo no extremo, a ponta
+    // livre e a manopla continuam do lado de fora das paredes
+    const handleSide = line.team === "red" ? 1 : -1; // vermelho em +Z, azul em -Z
+    const outerWall = W / 2 + T;
+    const gripLength = 0.9;
+    const handleEnd = handleSide * (outerWall + travel + 0.15 + gripLength);
+    const freeEnd = -handleSide * (outerWall + travel + 0.25);
+    const rodLength = Math.abs(handleEnd - freeEnd);
+    const rodOffset = (handleEnd + freeEnd) / 2;
 
     const rod = new THREE.Mesh(new THREE.CylinderGeometry(rodRadius, rodRadius, rodLength, 20), metalMaterial);
     rod.rotation.x = Math.PI / 2; // cilindro nasce em Y; deita ao longo de Z
@@ -311,23 +356,22 @@ function createRodLine(line, metalMaterial, blackPlastic) {
 
     // Manopla emborrachada
     const grip = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.13, 0.12, 0.9, 24),
+        new THREE.CylinderGeometry(0.13, 0.12, gripLength, 24),
         new THREE.MeshStandardMaterial({ map: createGripTexture(team.handle), roughness: 0.8 })
     );
     grip.rotation.x = Math.PI / 2;
-    grip.position.z = rodOffset + handleSide * (rodLength / 2 - 0.45);
+    grip.position.z = handleEnd - handleSide * gripLength / 2;
     rodLine.add(grip);
 
     const cap = new THREE.Mesh(new THREE.SphereGeometry(0.13, 20, 12), blackPlastic);
     cap.scale.set(1, 1, 0.5);
-    cap.position.z = rodOffset + handleSide * rodLength / 2;
+    cap.position.z = handleEnd;
     rodLine.add(cap);
 
-    // Para-choques de borracha (toro) perto das paredes internas
-    const minSlot = Math.min(...line.zSlots);
-    const maxSlot = Math.max(...line.zSlots);
-    const travel = W / 2 - 0.35 - maxSlot; // folga até a parede
-    for (const z of [minSlot - travel - 0.05, maxSlot + travel + 0.05]) {
+    // Para-choques de borracha (toro): são eles que encostam na parede
+    // interna no fim do curso, funcionando como a trava da haste
+    const bumperZ = W / 2 - travel - 0.04;
+    for (const z of [-bumperZ, bumperZ]) {
         const bumper = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.035, 10, 20), blackPlastic);
         bumper.position.z = z;
         rodLine.add(bumper);
@@ -354,6 +398,9 @@ function createRodLine(line, metalMaterial, blackPlastic) {
         minZ: -travel,
         maxZ: travel,
         kickTime: -1,
+        // Velocidades da haste (angular e de deslize), usadas na colisão
+        angularVelocity: 0,
+        slideVelocity: 0,
     };
     return rodLine;
 }

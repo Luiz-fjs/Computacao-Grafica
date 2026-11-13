@@ -1,34 +1,36 @@
 import * as THREE from "three";
 import { TABLE } from "./table.js";
-import { createFloorTexture, createRugTexture } from "./textures.js";
+import { loadImageTextureSet, PBR_MAPS } from "./textures.js";
 
 export const LAMP_LAYER = 1;
 
 // ==================================================
-// ROOM (piso de tacos + tapete)
+// ROOM (piso de parquet)
+// Textura fotográfica do ambientCG (CC0). O repeat é calculado pelo
+// tamanho de cada repetição em unidades do mundo, para os texels ficarem
+// quadrados.
 // ==================================================
+
+const FLOOR_TEXTURE = "assets/textures/woodfloor070/WoodFloor070_1K-JPG";
+const FLOOR_SIZE = 80;
+const FLOOR_TILE_SIZE = 6;
 
 export function createRoom() {
     const room = new THREE.Group();
     room.name = "Room";
 
+    const floorRepeat = FLOOR_SIZE / FLOOR_TILE_SIZE;
     const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(80, 80),
-        new THREE.MeshStandardMaterial({ map: createFloorTexture(), roughness: 0.8 })
+        new THREE.PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE),
+        new THREE.MeshStandardMaterial({
+            ...loadImageTextureSet(FLOOR_TEXTURE, PBR_MAPS, floorRepeat, floorRepeat),
+            roughness: 1,
+        })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = TABLE.floorY;
     floor.receiveShadow = true;
     room.add(floor);
-
-    const rug = new THREE.Mesh(
-        new THREE.PlaneGeometry(22, 15),
-        new THREE.MeshStandardMaterial({ map: createRugTexture(), roughness: 1 })
-    );
-    rug.rotation.x = -Math.PI / 2;
-    rug.position.y = TABLE.floorY + 0.01;
-    rug.receiveShadow = true;
-    room.add(rug);
 
     return room;
 }
@@ -80,7 +82,7 @@ function createHangingLamp(x, z) {
     // camada, assim as cúpulas não tapam a visão de cima do campo
     [cord, shade, bulb].forEach((mesh) => mesh.layers.set(LAMP_LAYER));
 
-    return { lamp, spot };
+    return { lamp, spot, bulb };
 }
 
 // ==================================================
@@ -119,10 +121,27 @@ export function createLights(scene) {
     blueGoalLight.position.set(goalOffset, 0.5, 0);
     scene.add(redGoalLight, blueGoalLight);
 
+    // Lista na ordem das teclas 1 a 6, para ligar/desligar cada luz
+    const switchable = [
+        { label: "Ambient (hemisphere)", light: hemisphere },
+        { label: "Window (directional)", light: sun },
+        { label: "Left lamp (spot)", light: lampLeft.spot, bulb: lampLeft.bulb },
+        { label: "Right lamp (spot)", light: lampRight.spot, bulb: lampRight.bulb },
+        { label: "Red goal (point)", light: redGoalLight },
+        { label: "Blue goal (point)", light: blueGoalLight },
+    ];
+
     return {
         hemisphere,
         sun,
         spots: [lampLeft.spot, lampRight.spot],
         goalLights: [redGoalLight, blueGoalLight],
+        switchable,
     };
+}
+
+// Liga/desliga uma luz; a lâmpada da luminária apaga junto com a SpotLight
+export function toggleLight(entry) {
+    entry.light.visible = !entry.light.visible;
+    if (entry.bulb) entry.bulb.material.emissiveIntensity = entry.light.visible ? 2 : 0;
 }
