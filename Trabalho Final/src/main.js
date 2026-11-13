@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createTable, TABLE } from "./table.js";
 import { createBalls, createBallStand, BALL_TYPES } from "./balls.js";
-import { createRoom, createLights, toggleLight, LAMP_LAYER } from "./environment.js";
+import { createRoom, createLights, toggleLight, updateEnvironmentReflection, LAMP_LAYER } from "./environment.js";
 import { loadWoodTextures, createUvCheckerTexture } from "./textures.js";
 import { updateBall } from "./physics.js";
 import { createPowerUp, updatePowerUp } from "./powerup.js";
@@ -366,6 +366,7 @@ window.addEventListener("keydown", (event) => {
     const lightIndex = Number(key) - 1;
     if (lightIndex >= 0 && lightIndex < lights.switchable.length) {
         toggleLight(lights.switchable[lightIndex]);
+        updateEnvironmentReflection(scene, lights.switchable);
         updateHud();
     }
 

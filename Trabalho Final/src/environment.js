@@ -121,14 +121,16 @@ export function createLights(scene) {
     blueGoalLight.position.set(goalOffset, 0.5, 0);
     scene.add(redGoalLight, blueGoalLight);
 
-    // Lista na ordem das teclas 1 a 6, para ligar/desligar cada luz
+    // Lista na ordem das teclas 1 a 6, para ligar/desligar cada luz.
+    // envWeight = quanto cada luz contribui para o reflexo do ambiente nos
+    // metais (soma 1): com tudo apagado, o reflexo também some.
     const switchable = [
-        { label: "Ambient (hemisphere)", light: hemisphere },
-        { label: "Window (directional)", light: sun },
-        { label: "Left lamp (spot)", light: lampLeft.spot, bulb: lampLeft.bulb },
-        { label: "Right lamp (spot)", light: lampRight.spot, bulb: lampRight.bulb },
-        { label: "Red goal (point)", light: redGoalLight },
-        { label: "Blue goal (point)", light: blueGoalLight },
+        { label: "Ambient (hemisphere)", light: hemisphere, envWeight: 0.3 },
+        { label: "Window (directional)", light: sun, envWeight: 0.3 },
+        { label: "Left lamp (spot)", light: lampLeft.spot, bulb: lampLeft.bulb, envWeight: 0.15 },
+        { label: "Right lamp (spot)", light: lampRight.spot, bulb: lampRight.bulb, envWeight: 0.15 },
+        { label: "Red goal (point)", light: redGoalLight, envWeight: 0.05 },
+        { label: "Blue goal (point)", light: blueGoalLight, envWeight: 0.05 },
     ];
 
     return {
@@ -144,4 +146,24 @@ export function createLights(scene) {
 export function toggleLight(entry) {
     entry.light.visible = !entry.light.visible;
     if (entry.bulb) entry.bulb.material.emissiveIntensity = entry.light.visible ? 2 : 0;
+}
+
+// ==================================================
+// ENVIRONMENT REFLECTION
+// Os metais (hastes, traves, expositor, bola pesada) usam um envMap gerado
+// a partir do RoomEnvironment. Esse mapa é iluminação baseada em imagem:
+// ele não passa pelas luzes da cena, então os metais continuariam brilhando
+// com tudo apagado. Aqui a intensidade do reflexo acompanha as luzes acesas.
+// ==================================================
+
+export function updateEnvironmentReflection(scene, switchable) {
+    const lightLevel = switchable.reduce((sum, entry) => sum + (entry.light.visible ? entry.envWeight : 0), 0);
+
+    scene.traverse((object) => {
+        if (!object.isMesh || !object.material.envMap) return;
+        const material = object.material;
+        // Guarda a intensidade original na primeira vez
+        material.userData.baseEnvMapIntensity ??= material.envMapIntensity;
+        material.envMapIntensity = material.userData.baseEnvMapIntensity * lightLevel;
+    });
 }
