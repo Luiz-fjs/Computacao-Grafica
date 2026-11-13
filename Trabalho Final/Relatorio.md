@@ -253,14 +253,12 @@ Ao desligar uma luminária, a lâmpada dela também apaga (a emissão do materia
 - **Só a ambiente:** cena inteira visível, mas sem sombras e sem volume.
 - **Todas apagadas:** tela preta. Só o modelo do power-up continua visível, porque tem brilho próprio (material emissivo) de propósito, para ser achado no campo.
 
-**Reflexo dos metais:** hastes, traves, expositor e bola pesada usam um mapa de ambiente (`envMap`, gerado a partir do `RoomEnvironment`) para ter reflexo metálico. Esse mapa é iluminação baseada em imagem e não passa pelas luzes da cena, então os metais continuavam brilhando mesmo com tudo apagado. A correção ([`updateEnvironmentReflection` em `src/environment.js`](src/environment.js)) dá a cada luz um peso no reflexo (ambiente 0,3, janela 0,3, cada luminária 0,15, cada gol 0,05; soma 1) e multiplica a intensidade do `envMap` de todos os metais pela soma das luzes acesas. Com tudo apagado o reflexo vai a zero; com só as luminárias, cai para 30%.
-
 ### 2.5 Dificuldades da entrega 2
 
 1. **Luminárias tapando a vista de cima:** resolvido com camadas (`layers`), descrito em 2.2.
 2. **Controles com a câmera espelhada:** no 2º tempo, "para cima" na tela vira +Z, então o sentido do deslize é invertido conforme o tempo.
 3. **Troca de tempo brusca:** a câmera deslizava em linha reta por cima do campo. A solução foi o giro em coordenadas polares.
-4. **Metais acesos com as luzes apagadas:** o reflexo do mapa de ambiente não depende das luzes da cena. A intensidade dele passou a acompanhar as luzes acesas (2.4).
+4. **Metais acesos com as luzes apagadas:** hastes, traves, expositor e bola pesada usam um mapa de ambiente (`envMap`, gerado a partir do `RoomEnvironment`) para ter reflexo metálico. Como o mapa é iluminação baseada em imagem, não passava pelas luzes da cena, então os metais continuavam brilhando mesmo com tudo apagado. A correção ([`updateEnvironmentReflection` em `src/environment.js`](src/environment.js)) dá a cada luz um peso no reflexo (ambiente 0,3, janela 0,3, cada luminária 0,15, cada gol 0,05; soma 1) e multiplica a intensidade do `envMap` de todos os metais pela soma das luzes acesas. Agora com tudo apagado o reflexo vai a zero.
 
 ---
 
