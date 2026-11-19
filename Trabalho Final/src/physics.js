@@ -154,23 +154,45 @@ function clampSpeed(velocity) {
 // Subpassos evitam que a bola rápida atravesse um boneco num único frame.
 // ==================================================
 
+const UP = new THREE.Vector3(0, 1, 0);
+const startPosition = new THREE.Vector3();
+const displacement = new THREE.Vector3();
+const rollAxis = new THREE.Vector3();
+const rollRotation = new THREE.Quaternion();
+
+// Rolamento sem deslizar: a bola gira em torno do eixo horizontal
+// perpendicular ao deslocamento (UP × deslocamento), de um ângulo igual à
+// distância percorrida dividida pelo raio. A rotação é aplicada com
+// quaternion em torno de um eixo FIXO do mundo (premultiply); acumular
+// rotation.x/rotation.z separados faria cada giro acontecer em torno de um
+// eixo já inclinado pelo outro, e a bola "tombaria" em direções aleatórias.
+function rollBall(ball, radius) {
+    displacement.subVectors(ball.position, startPosition).setY(0);
+    const distance = displacement.length();
+    if (distance < 1e-6) return;
+
+    rollAxis.crossVectors(UP, displacement).normalize();
+    rollRotation.setFromAxisAngle(rollAxis, distance / radius);
+    ball.quaternion.premultiply(rollRotation);
+}
+
 export function updateBall(ball, velocity, rodLines, dt, onGoal) {
     const { radius, friction } = ball.userData;
     const steps = Math.min(8, Math.max(1, Math.ceil((velocity.length() * dt) / (radius * 0.5))));
     const stepDt = dt / steps;
 
     for (let i = 0; i < steps; i++) {
+        startPosition.copy(ball.position);
         ball.position.addScaledVector(velocity, stepDt);
         velocity.multiplyScalar(Math.exp(-friction * 0.5 * stepDt));
 
         collideWithPlayers(ball, velocity, rodLines);
         if (collideWithWalls(ball, velocity, onGoal)) return;
         clampSpeed(velocity);
+
+        // Gira pelo deslocamento real deste subpasso (já com colisões)
+        rollBall(ball, radius);
     }
 
     ball.position.y = radius;
-
-    // Rolamento visual: gira em torno do eixo perpendicular ao movimento
-    ball.rotation.z -= (velocity.x * dt) / radius;
-    ball.rotation.x += (velocity.z * dt) / radius;
 }

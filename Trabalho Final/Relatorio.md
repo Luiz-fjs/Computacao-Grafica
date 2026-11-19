@@ -386,7 +386,12 @@ O curso de cada haste é `travel = min(W/2 − 0,35 − maior z do slot, espaça
 - **Rebote:** sem chute, a bola reflete em relação à velocidade do pé e do deslize da haste.
 - **Chute com raspão:** a força depende da distância lateral `dz` entre a bola e o eixo do boneco: `força = 0,3 + 0,7 · (1 − |dz| / (meia largura + raio))`, dividida por `√massa`. Medido com a bola normal: `dz = 0` → 9,3 u/s reto; 0,15 → 6,5; 0,30 → 4,3; 0,36 → 3,3 com desvio lateral.
 
-Dificuldades: a haste de ataque tinha comprimento fixo e saía da mesa com o curso antigo de ±1,75; e testar a bola contra cada malha do boneco seria caro e instável, por isso o volume simplificado.
+- **Rotação de rolamento:** a cada subpasso, a bola gira em torno do eixo horizontal perpendicular ao deslocamento real (`UP × deslocamento`), de um ângulo igual à distância percorrida dividida pelo raio. A rotação é aplicada com quaternion em torno de um eixo fixo do mundo (`quaternion.premultiply`).
+
+Dificuldades:
+- A haste de ataque tinha comprimento fixo e saía da mesa com o curso antigo de ±1,75.
+- Testar a bola contra cada malha do boneco seria caro e instável, por isso o volume simplificado.
+- A primeira versão de rotação da bola acumulava dois ângulos de Euler separados (`rotation.z -= vx·dt/r` e `rotation.x += vz·dt/r`). O Three.js aplica esses ângulos em sequência, cada um no eixo já girado pelo anterior. Depois de rolar um pouco num sentido, o giro do outro sentido passava a acontecer em torno de um eixo inclinado, e a bola "tombava" para direções sem relação com o movimento, o que ficava evidente em baixa velocidade e nas mudanças de direção.
 
 ### 4.3 Power-up coletável: modelo (`src/powerup.js`)
 
