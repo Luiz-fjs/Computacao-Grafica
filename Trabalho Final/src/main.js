@@ -6,6 +6,7 @@ import { createRoom, createLights, toggleLight, updateEnvironmentReflection, LAM
 import { loadWoodTextures, createUvCheckerTexture } from "./textures.js";
 import { updateBall } from "./physics.js";
 import { createPowerUp, updatePowerUp } from "./powerup.js";
+import * as scoreboard from "./scoreboard.js";
 
 // ==================================================
 // RENDERER + SCENE
@@ -251,13 +252,41 @@ function updateCamera(dt) {
 
 const HALF_DURATION = 120; // segundos por tempo
 const POWER_UP_DURATION = 8; // segundos de visão 2D
+const GOALS_TO_WIN = 6;
+const GOAL_CELEBRATION_TIME = 1; // bola parada dentro do gol, luz piscando
+const GOAL_RESTART_TIME = 1; // bola parada no meio de campo antes de rolar
+const GOAL_FLASH_INTERVAL = 0.15; // pisca-pisca da luz do gol
+const FINAL_SECONDS = 10; // efeito de "últimos segundos" no relógio
+const HALFTIME_TITLE_TIME = 2; // "Fim do primeiro tempo" antes do giro
+const COUNTDOWN_FROM = 3;
 
+// Textos exibidos na tela (conteúdo para o jogador, em português)
+const TEAM_NAMES = { red: "Time 1", blue: "Time 2" };
+const TEXT = {
+    halftime: "Fim do primeiro tempo",
+    go: "Valendo!",
+    matchOver: "Fim da Partida",
+    victory: (team) => `Vitória do ${TEAM_NAMES[team]}`,
+    draw: "Empate",
+    newMatchHint: "Pressione R para uma nova partida",
+};
+
+// phase controla o que roda em cada frame:
+//   playing   -> relógio, hastes e bola em movimento
+//   goal      -> relógio parado: 1 s com a bola no gol + 1 s no meio de campo
+//   halftime  -> intervalo: mensagem e giro da câmera
+//   switching -> câmera voltando ao lado do 1º tempo numa nova partida
+//   countdown -> contagem 3, 2, 1 e "Valendo!" (início de cada tempo)
+//   ended     -> fim da partida, esperando R
 const match = {
     half: 1,
     clock: HALF_DURATION,
     score: { red: 0, blue: 0 },
     powerUpTime: 0,
-    paused: false, // jogo congelado durante o giro da câmera
+    phase: "playing",
+    phaseTime: 0,
+    halftimeStage: null, // "title" | "rotating"
+    countdownShown: null,
 };
 
 const ballVelocity = new THREE.Vector3();
@@ -278,11 +307,28 @@ function updateScoreCounters() {
                 : -1.0 + i * 0.24;
         });
     }
+    scoreboard.setScore(match.score);
+}
+
+function activeBall() {
+    return balls[ballOrder[activeBallIndex]];
+}
+
+function setPhase(phase) {
+    match.phase = phase;
+    match.phaseTime = 0;
+}
+
+// Bola parada no centro (intervalo, fim de partida, troca de lado)
+function resetBallToCenter() {
+    const ball = activeBall();
+    ball.position.set(0, ball.userData.radius, 0);
+    ballVelocity.set(0, 0, 0);
 }
 
 // Saída de bola: centro do campo, lado sorteado (+X ou -X) e leve ângulo
 function kickOff() {
-    const ball = balls[ballOrder[activeBallIndex]];
+    const ball = activeBall();
     ball.position.set(0, ball.userData.radius, 0);
 
     const side = Math.random() < 0.5 ? -1 : 1;
@@ -291,29 +337,15 @@ function kickOff() {
     ballVelocity.set(side * Math.cos(angle) * speed, 0, Math.sin(angle) * speed);
 }
 
-// animateCamera = false só no carregamento (câmera já nasce no lugar)
-function startHalf(half, animateCamera = true) {
+function halfPose(half) {
+    return half === 1 ? "firstHalf" : "secondHalf";
+}
+
+function startHalf(half) {
     match.half = half;
     match.clock = HALF_DURATION;
     match.powerUpTime = 0;
-    setCameraPose(half === 1 ? "firstHalf" : "secondHalf");
-
-    if (!animateCamera) {
-        kickOff();
-        updateHud();
-        return;
-    }
-
-    // Bola parada no centro enquanto a câmera gira; a saída vem depois
-    const ball = balls[ballOrder[activeBallIndex]];
-    ball.position.set(0, ball.userData.radius, 0);
-    ballVelocity.set(0, 0, 0);
-    match.paused = true;
-    startSideSwitch(() => {
-        match.paused = false;
-        kickOff();
-        updateHud();
-    });
+    setCameraPose(halfPose(half));
     updateHud();
 }
 
@@ -322,11 +354,166 @@ function activatePowerUp() {
     setCameraPose("topDown");
 }
 
+function endPowerUp() {
+    match.powerUpTime = 0;
+    setCameraPose(halfPose(match.half));
+}
+
+// --------------------------------------------------
+// GOAL FLASH: a PointLight do gol onde a bola entrou acende e apaga
+// --------------------------------------------------
+
+let goalFlash = null;
+
+function startGoalFlash(light) {
+    stopGoalFlash();
+    goalFlash = { light, time: 0, baseIntensity: light.intensity, wasVisible: light.visible };
+    light.visible = true;
+}
+
+function updateGoalFlash(dt) {
+    if (!goalFlash) return;
+    goalFlash.time += dt;
+    const on = Math.floor(goalFlash.time / GOAL_FLASH_INTERVAL) % 2 === 0;
+    goalFlash.light.intensity = on ? goalFlash.baseIntensity * 4 : 0;
+    if (goalFlash.time >= GOAL_CELEBRATION_TIME) stopGoalFlash();
+}
+
+function stopGoalFlash() {
+    if (!goalFlash) return;
+    goalFlash.light.intensity = goalFlash.baseIntensity;
+    goalFlash.light.visible = goalFlash.wasVisible;
+    goalFlash = null;
+}
+
 function onGoal(scorer) {
-    match.score[scorer] = Math.min(match.score[scorer] + 1, 6);
+    match.score[scorer] += 1;
     updateScoreCounters();
-    kickOff();
+
+    // Gol do azul = bola entrou no gol vermelho (-X), e vice-versa
+    const [redGoalLight, blueGoalLight] = lights.goalLights;
+    startGoalFlash(scorer === "blue" ? redGoalLight : blueGoalLight);
+
+    if (match.score[scorer] >= GOALS_TO_WIN) endMatch();
+    else setPhase("goal");
     updateHud();
+}
+
+// Pausa do gol (relógio parado): 1 s com a bola dentro do gol enquanto a
+// luz pisca, depois 1 s parada no meio de campo, e então volta a rolar
+function updateGoalPause() {
+    if (match.phaseTime < GOAL_CELEBRATION_TIME) return;
+    if (match.phaseTime < GOAL_CELEBRATION_TIME + GOAL_RESTART_TIME) {
+        resetBallToCenter();
+        return;
+    }
+    kickOff();
+    setPhase("playing");
+}
+
+// --------------------------------------------------
+// COUNTDOWN: 3, 2, 1 -> "Valendo!" -> saída de bola
+// --------------------------------------------------
+
+function startCountdown() {
+    resetBallToCenter();
+    setPhase("countdown");
+    match.countdownShown = null;
+}
+
+function updateCountdown() {
+    const remaining = COUNTDOWN_FROM - Math.floor(match.phaseTime);
+    if (remaining > 0) {
+        if (match.countdownShown !== remaining) {
+            match.countdownShown = remaining;
+            scoreboard.showBanner(String(remaining), { pop: true });
+        }
+        return;
+    }
+
+    scoreboard.showBanner(TEXT.go, { pop: true, duration: 1 });
+    kickOff();
+    setPhase("playing");
+}
+
+// --------------------------------------------------
+// HALFTIME: mensagem -> giro da câmera -> 3, 2, 1 -> "Valendo!"
+// --------------------------------------------------
+
+function startHalftime() {
+    if (match.powerUpTime > 0) endPowerUp();
+    resetBallToCenter();
+    setPhase("halftime");
+    match.halftimeStage = "title";
+    scoreboard.showBanner(TEXT.halftime);
+}
+
+function updateHalftime() {
+    if (match.halftimeStage === "title" && match.phaseTime >= HALFTIME_TITLE_TIME) {
+        match.halftimeStage = "rotating";
+        scoreboard.hideBanner();
+        startHalf(2);
+        startSideSwitch(() => {
+            match.halftimeStage = null;
+            startCountdown();
+        });
+    }
+}
+
+// --------------------------------------------------
+// END OF MATCH (6 gols ou fim do 2º tempo) e nova partida (R)
+// --------------------------------------------------
+
+function endMatch() {
+    if (match.powerUpTime > 0) endPowerUp();
+    setPhase("ended");
+    ballVelocity.set(0, 0, 0);
+
+    const { red, blue } = match.score;
+    const result = red === blue ? TEXT.draw : TEXT.victory(red > blue ? "red" : "blue");
+    scoreboard.showBanner(TEXT.matchOver, { subtitle: result, hint: TEXT.newMatchHint });
+}
+
+function newMatch() {
+    stopGoalFlash();
+    scoreboard.hideBanner();
+    match.score.red = 0;
+    match.score.blue = 0;
+    updateScoreCounters();
+
+    const cameraOnSecondHalfSide = match.half === 2;
+    startHalf(1);
+    resetBallToCenter();
+
+    // Se a câmera está do lado do 2º tempo, gira de volta antes da contagem
+    if (cameraOnSecondHalfSide) {
+        setPhase("switching");
+        startSideSwitch(startCountdown);
+    } else {
+        sideSwitch = null;
+        startCountdown();
+    }
+}
+
+// Relógio só corre com a bola em jogo; ao zerar, intervalo ou fim de jogo
+function updateMatchClock(dt) {
+    match.clock -= dt;
+    if (match.clock > 0) return;
+    match.clock = 0;
+    if (match.half === 1) startHalftime();
+    else endMatch();
+}
+
+function updateMatch(dt) {
+    match.phaseTime += dt;
+    if (match.phase === "playing") updateMatchClock(dt);
+    else if (match.phase === "goal") updateGoalPause();
+    else if (match.phase === "halftime") updateHalftime();
+    else if (match.phase === "countdown") updateCountdown();
+
+    const isFinalSeconds = (match.phase === "playing" || match.phase === "goal")
+        && match.clock > 0 && match.clock <= FINAL_SECONDS;
+    scoreboard.setClock(match.clock, isFinalSeconds);
 }
 
 // ==================================================
@@ -348,6 +535,11 @@ const CONTROLS = {
     blue: { up: "arrowup", down: "arrowdown", kick: "j" },
 };
 
+// Hastes respondem com a bola em jogo e na pausa curta do gol
+function rodsActive() {
+    return match.phase === "playing" || match.phase === "goal";
+}
+
 function kick(team) {
     teamLines[team].forEach((line) => {
         if (line.userData.kickTime < 0) line.userData.kickTime = 0;
@@ -358,9 +550,11 @@ window.addEventListener("keydown", (event) => {
     const key = event.key.toLowerCase();
     pressedKeys.add(key);
 
-    if (key === CONTROLS.red.kick) kick("red");
-    if (key === CONTROLS.blue.kick) kick("blue");
     if (key.startsWith("arrow")) event.preventDefault();
+    if (rodsActive()) {
+        if (key === CONTROLS.red.kick) kick("red");
+        if (key === CONTROLS.blue.kick) kick("blue");
+    }
 
     // Teclas 1–6: liga/desliga cada fonte de luz
     const lightIndex = Number(key) - 1;
@@ -376,11 +570,12 @@ window.addEventListener("keydown", (event) => {
         updateHud();
     }
     if (key === "g") helpers.visible = !helpers.visible;
-    if (key === "h") hudPanel.hidden = !hudPanel.hidden;
-    if (match.paused) return;
+    if (key === "escape") hudPanel.hidden = !hudPanel.hidden;
+    if (key === "r") newMatch();
+    if (match.phase !== "playing") return;
     if (key === "p") activatePowerUp();
-    if (key === "t") startHalf(match.half === 1 ? 2 : 1);
-    if (key === "r") kickOff();
+    // Depuração: pula para os últimos segundos do tempo atual
+    if (key === "t") match.clock = Math.min(match.clock, FINAL_SECONDS + 2);
     if (key === "b") {
         activeBallIndex = (activeBallIndex + 1) % ballOrder.length;
         placeBalls();
@@ -416,21 +611,13 @@ function updateRods(dt) {
 const hudPanel = document.getElementById("hud");
 const hud = document.getElementById("hud-status");
 
-function formatClock(seconds) {
-    const s = Math.max(0, Math.ceil(seconds));
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
 function updateHud() {
     const ball = BALL_TYPES[ballOrder[activeBallIndex]];
     const powerUp = match.powerUpTime > 0
         ? `<div class="power-up">2D power-up: ${Math.ceil(match.powerUpTime)}s</div>`
         : "";
     hud.innerHTML = `
-        <div class="score">
-            <span class="red">RED ${match.score.red}</span> × <span class="blue">${match.score.blue} BLUE</span>
-        </div>
-        <div>Half: <b>${match.half}</b> · Clock: <b>${formatClock(match.clock)}</b></div>
+        <div>Half: <b>${match.half}</b> · Phase: <b>${match.phase}</b></div>
         <div>Camera: <b>${sideSwitch ? "Switching sides…" : cameraPose.label}</b></div>
         <div>Ball on field: <b>${ball.label}</b></div>
         ${powerUp}
@@ -463,17 +650,17 @@ function animate() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const time = clock.elapsedTime;
 
-    // Relógio da partida: ao fim do 1º tempo troca para o 2º
-    if (!match.paused) match.clock -= dt;
-    if (match.clock <= 0 && match.half === 1) startHalf(2);
+    // Relógio, gols, intervalo e fim de partida
+    updateMatch(dt);
+    updateGoalFlash(dt);
 
-    // Power-up 2D com duração limitada
-    if (match.powerUpTime > 0) {
+    // Power-up 2D com duração limitada (só conta com a bola em jogo)
+    if (match.powerUpTime > 0 && match.phase === "playing") {
         match.powerUpTime -= dt;
-        if (match.powerUpTime <= 0) setCameraPose(match.half === 1 ? "firstHalf" : "secondHalf");
+        if (match.powerUpTime <= 0) endPowerUp();
     }
 
-    if (!match.paused) updateRods(dt);
+    if (rodsActive()) updateRods(dt);
 
     rodLines.forEach((line) => {
         const data = line.userData;
@@ -500,7 +687,7 @@ function animate() {
     updatePowerUp(powerUpPreview, time);
 
     // Bola depois das hastes, para usar as velocidades deste frame
-    if (!match.paused) updateBall(balls[ballOrder[activeBallIndex]], ballVelocity, rodLines, dt, onGoal);
+    if (match.phase === "playing") updateBall(activeBall(), ballVelocity, rodLines, dt, onGoal);
 
     updateCamera(dt);
 
@@ -520,7 +707,10 @@ function animate() {
 
 placeBalls();
 setCameraPose("firstHalf", true);
-startHalf(1, false); // sorteia o lado da saída de bola
+scoreboard.setTeamNames(TEAM_NAMES);
+updateScoreCounters();
+startHalf(1);
+startCountdown(); // 3, 2, 1 e saída de bola com lado sorteado
 animate();
 
 // ==================================================

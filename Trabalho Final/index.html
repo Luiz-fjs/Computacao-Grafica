@@ -37,6 +37,80 @@
         #hud .lights .on { color: #9be29b; }
         #hud .lights .off { color: #777; text-decoration: line-through; }
         #hud a { color: #8fb8ff; pointer-events: auto; }
+        /* Placar: times e gols nas laterais do relógio */
+        #scoreboard {
+            position: fixed;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            color: #f2f2f2;
+            font-size: 22px;
+            font-weight: 600;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            user-select: none;
+        }
+        #scoreboard .team { min-width: 90px; }
+        #scoreboard .team.red { color: #ff6b6b; text-align: right; }
+        #scoreboard .team.blue { color: #6ea8ff; text-align: left; }
+        #scoreboard .goals { font-size: 30px; font-weight: 800; min-width: 24px; text-align: center; }
+        #clock-box {
+            padding: 4px 18px;
+            border: 3px solid #f2f2f2;
+            border-radius: 6px;
+            background: rgba(10, 10, 14, 0.6);
+            font-size: 30px;
+            font-variant-numeric: tabular-nums;
+            transition: transform 0.3s ease;
+            transform-origin: top center;
+        }
+        /* Últimos 10 segundos: maior, piscando em vermelho e tremendo */
+        #clock-box.final {
+            transform: scale(1.35);
+            animation: clock-blink 0.5s steps(1) infinite;
+        }
+        #clock-box.final #clock {
+            display: inline-block;
+            animation: clock-shake 0.18s linear infinite;
+        }
+        @keyframes clock-blink {
+            0% { color: #ff3b3b; border-color: #ff3b3b; }
+            50% { color: #f2f2f2; border-color: #f2f2f2; }
+        }
+        @keyframes clock-shake {
+            0%, 100% { transform: translate(0, 0) rotate(0); }
+            25% { transform: translate(-1.5px, 1px) rotate(-1.5deg); }
+            50% { transform: translate(1px, -1px) rotate(1deg); }
+            75% { transform: translate(1.5px, 1px) rotate(-1deg); }
+        }
+        /* Faixa central: fim de tempo, contagem e resultado */
+        #banner {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #fff;
+            text-align: center;
+            text-shadow: 0 4px 18px rgba(0, 0, 0, 0.9);
+            pointer-events: none;
+            user-select: none;
+        }
+        #banner[hidden] { display: none; }
+        #banner .title { font-size: clamp(36px, 7vw, 84px); font-weight: 800; }
+        #banner .subtitle { font-size: clamp(22px, 3.5vw, 40px); font-weight: 600; color: #ffd447; }
+        #banner .hint { font-size: 16px; color: #d0d0d0; }
+        #banner .title.pop { animation: banner-pop 0.6s ease-out; }
+        @keyframes banner-pop {
+            0% { transform: scale(2.2); opacity: 0; }
+            60% { transform: scale(0.95); opacity: 1; }
+            100% { transform: scale(1); }
+        }
         #hud kbd {
             display: inline-block;
             min-width: 14px;
@@ -60,15 +134,30 @@
 
 <body>
 
+    <div id="scoreboard">
+        <span class="team red" id="team-red-name"></span>
+        <span class="goals" id="score-red">0</span>
+        <div id="clock-box"><span id="clock">2:00</span></div>
+        <span class="goals" id="score-blue">0</span>
+        <span class="team blue" id="team-blue-name"></span>
+    </div>
+
+    <div id="banner" hidden>
+        <div class="title"></div>
+        <div class="subtitle"></div>
+        <div class="hint"></div>
+    </div>
+
     <div id="hud">
         <h1>Totóbolim</h1>
         <div id="hud-status"></div>
         <div class="keys">
             <div><span class="red">Red</span>: <kbd>W</kbd>/<kbd>S</kbd> slide · <kbd>C</kbd> kick</div>
             <div><span class="blue">Blue</span>: <kbd>↑</kbd>/<kbd>↓</kbd> slide · <kbd>J</kbd> kick</div>
-            <div class="debug">Debug: <kbd>P</kbd> 2D power-up · <kbd>T</kbd> switch half</div>
-            <div class="debug"><kbd>R</kbd> kick-off · <kbd>B</kbd> switch ball · <kbd>G</kbd> axes + grid</div>
-            <div class="debug"><kbd>1</kbd>–<kbd>6</kbd> toggle each light · <kbd>U</kbd> UV checker · <kbd>H</kbd> hide panel</div>
+            <div><kbd>R</kbd> new match · <kbd>Esc</kbd> show/hide panel</div>
+            <div class="debug">Debug: <kbd>P</kbd> 2D power-up · <kbd>T</kbd> skip to last seconds</div>
+            <div class="debug"><kbd>B</kbd> switch ball · <kbd>G</kbd> axes + grid · <kbd>U</kbd> UV checker</div>
+            <div class="debug"><kbd>1</kbd>–<kbd>6</kbd> toggle each light</div>
             <div class="debug"><a href="textures.html">Texture gallery →</a></div>
         </div>
     </div>

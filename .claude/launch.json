@@ -4,8 +4,26 @@
     {
       "name": "totobolim",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "Trabalho Final"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "Trabalho Final"
+      ],
       "port": 8765
+    },
+    {
+      "name": "totobolim-alt",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--directory",
+        "Trabalho Final"
+      ],
+      "port": 8766
     }
   ]
 }
